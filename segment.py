@@ -1,41 +1,62 @@
 import argparse
 import time
-import redis
-
+import random
+from kafka import KafkaProducer, KafkaConsumer
 
 def main():
-    parser = argparse.ArgumentParser(description="Segment Prozess mit Redis-Kommunikation")
-    parser.add_argument("--id", required=True, help="Segment ID")
-    parser.add_argument("--type", required=True, choices=["start-goal", "normal"], help="Segment Typ")
-    parser.add_argument("--next", nargs="+", required=True, help="Nächste Segment IDs")
+    parser = argparse.ArgumentParser(
+        description="Segment Prozess mit Kafka-Kommunikation und erweiterten Schikanen"
+    )
+    parser.add_argument("--id", required=True, help="Segment ID (Kafka-Topic)")
+    parser.add_argument("--type", required=True, choices=["start-goal", "normal", "bottleneck", "caesar"],
+                        help="Segment Typ")
+    parser.add_argument("--next", nargs="+", required=True, help="Nächste Segment-IDs (Kafka-Topics)")
     args = parser.parse_args()
 
-    # Verbindung zum Redis-Server (Standard: localhost:6379)
-    r = redis.Redis(host='localhost', port=6379, decode_responses=True)
-    pubsub = r.pubsub()
-    # Abonniere den eigenen Kanal
-    pubsub.subscribe(args.id)
+    bootstrap_servers = ['localhost:9093', 'localhost:9095', 'localhost:9097']
+    producer = KafkaProducer(bootstrap_servers=bootstrap_servers)
+    # Erzeuge eine zufällige Consumer-Gruppe, damit alte Offsets nicht verwendet werden:
+    group_id = args.id + "-" + str(random.randint(1000, 9999))
+    consumer = KafkaConsumer(
+        args.id,
+        bootstrap_servers=bootstrap_servers,
+        auto_offset_reset='latest',  # nur neue Nachrichten lesen
+        group_id=group_id,
+        enable_auto_commit=True,
+        value_deserializer=lambda m: m.decode('utf-8')
+    )
 
     if args.type == "start-goal":
-        # Startbefehl per CLI: Warten auf Enter
-        input(f"Segment {args.id}: Drücke Enter, um das Rennen zu starten...")
-        print(f"Segment {args.id} sendet initial Token an {args.next}")
+        user_input = input(f"Segment {args.id}: Drücke Enter, um das Rennen zu starten...")
+        # Kurze Verzögerung, damit alle Consumer sich vollständig anmelden können
+        print("Der Streitwagen macht sich bereit..")
+        time.sleep(3)
+        print(f"Und LOS: Segment {args.id} sendet initial Token an {args.next}")
         for next_seg in args.next:
-            r.publish(next_seg, "TOKEN")
+            producer.send(next_seg, b"TOKEN")
+        producer.flush()
+    else:
+        print(f"Segment {args.id} vom Typ '{args.type}' wartet auf Token...")
 
-    # Endlosschleife: Warte auf eingehende Token
-    for message in pubsub.listen():
-        # Überspringe andere Nachrichten (z.B. Subscribe-Bestätigungen)
-        if message['type'] != 'message':
-            continue
-        token = message['data']
-        print(f"Segment {args.id} empfängt Token: {token}")
-        # Simuliere eine kleine Verarbeitungszeit
-        time.sleep(0.5)
+    for message in consumer:
+        token = message.value
+        if args.type == "normal":
+            time.sleep(0.5)
+            print(f"Segment {args.id} (normal) leitet Token an {args.next} weiter")
+        elif args.type == "bottleneck":
+            delay = random.uniform(2, 5)
+            print(f"Segment {args.id} (bottleneck) blockiert den Weg für {delay:.1f} Sekunden")
+            time.sleep(delay)
+            print(f"Segment {args.id} (bottleneck) leitet Token an {args.next} weiter")
+        elif args.type == "caesar":
+            delay = random.uniform(3, 7)
+            print(f"Segment {args.id} (caesar) ruft: 'Ave Caesar!' und blockiert den Weg für {delay:.1f} Sekunden")
+            time.sleep(delay)
+            print(f"Segment {args.id} (caesar) leitet Token an {args.next} weiter")
+
         for next_seg in args.next:
-            print(f"Segment {args.id} leitet Token an {next_seg} weiter")
-            r.publish(next_seg, token)
-
+            producer.send(next_seg, token.encode('utf-8') if isinstance(token, str) else token)
+        producer.flush()
 
 if __name__ == "__main__":
     main()

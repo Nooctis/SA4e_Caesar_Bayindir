@@ -35,6 +35,13 @@
           "segmentId": "segment-1-4",
           "type": "normal",
           "nextSegments": [
+            "segment-1-5"
+          ]
+        },
+        {
+          "segmentId": "segment-1-5",
+          "type": "caesar",
+          "nextSegments": [
             "start-and-goal-1"
           ]
         }
@@ -59,20 +66,27 @@
         },
         {
           "segmentId": "segment-2-2",
-          "type": "normal",
+          "type": "bottleneck",
           "nextSegments": [
             "segment-2-3"
           ]
         },
         {
           "segmentId": "segment-2-3",
-          "type": "normal",
+          "type": "bottleneck",
           "nextSegments": [
             "segment-2-4"
           ]
         },
         {
           "segmentId": "segment-2-4",
+          "type": "caesar",
+          "nextSegments": [
+            "segment-2-5"
+          ]
+        },
+        {
+          "segmentId": "segment-2-5",
           "type": "normal",
           "nextSegments": [
             "start-and-goal-2"
@@ -113,6 +127,13 @@
         },
         {
           "segmentId": "segment-3-4",
+          "type": "caesar",
+          "nextSegments": [
+            "segment-3-5"
+          ]
+        },
+        {
+          "segmentId": "segment-3-5",
           "type": "normal",
           "nextSegments": [
             "start-and-goal-3"

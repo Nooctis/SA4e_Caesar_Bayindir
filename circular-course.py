@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 import sys
 import json
+import random
 
 def generate_tracks(num_tracks: int, length_of_track: int):
     """
-    Generates a data structure with 'num_tracks' circular tracks.
-    Each track has exactly 'length_of_track' segments:
-      - 1 segment: 'start-and-goal-t'
-      - (length_of_track - 1) segments: 'segment-t-c'
-    Returns a Python dict that can be serialized to JSON.
+    Generiert eine Datenstruktur mit 'num_tracks' kreisförmigen Strecken.
+    Jeder Track hat 'length_of_track' Segmente:
+      - Segment 1: immer 'start-goal'
+      - Falls length_of_track >= 3: an einer zufälligen Position (außer 1 und letztem) wird ein 'caesar'-Segment eingefügt.
+      - Für die übrigen Segmente: mit 20% Wahrscheinlichkeit 'bottleneck', sonst 'normal'.
+      - Das letzte Segment (oder der letzte generierte) verweist zurück auf 'start-goal'.
     """
     all_tracks = []
 
@@ -16,36 +18,48 @@ def generate_tracks(num_tracks: int, length_of_track: int):
         track_id = str(t)
         segments = []
 
-        # First segment: start-and-goal-t
+        # 1. Start-/Zielsegment
         start_segment_id = f"start-and-goal-{t}"
+        # Falls Track-Länge 1 => Schleife auf sich selbst
         if length_of_track == 1:
-            # Edge case: track length is 1 => no "normal" segments, loops onto itself
             next_segments = [start_segment_id]
         else:
             next_segments = [f"segment-{t}-1"]
 
-        start_segment = {
+        segments.append({
             "segmentId": start_segment_id,
             "type": "start-goal",
             "nextSegments": next_segments
-        }
-        segments.append(start_segment)
+        })
 
-        # Create normal segments: segment-t-c for c in [1..(L-1)]
+        # Bestimme, falls möglich, eine Position für das Caesar-Segment:
+        caesar_index = None
+        if length_of_track >= 3:
+            # Wähle zufällig zwischen 2 und (L-1) als Caesar-Position
+            caesar_index = random.randint(2, length_of_track - 1)
+
+        # Erzeuge die restlichen Segmente:
         for c in range(1, length_of_track):
             seg_id = f"segment-{t}-{c}"
-            # If this is the last normal segment, it loops back to 'start-and-goal-t'
+            # Letztes Segment: nächstes Segment ist der Start
             if c == length_of_track - 1:
                 next_segs = [start_segment_id]
             else:
                 next_segs = [f"segment-{t}-{c+1}"]
 
-            segment = {
+            # Entscheide den Segmenttyp:
+            # Wenn c entspricht dem festgelegten caesar_index, dann Typ "caesar"
+            if caesar_index and c == caesar_index:
+                seg_type = "caesar"
+            else:
+                # Mit 20% Wahrscheinlichkeit Bottleneck, sonst normal
+                seg_type = "bottleneck" if random.random() < 0.2 else "normal"
+
+            segments.append({
                 "segmentId": seg_id,
-                "type": "normal",
+                "type": seg_type,
                 "nextSegments": next_segs
-            }
-            segments.append(segment)
+            })
 
         track_definition = {
             "trackId": track_id,
@@ -54,7 +68,6 @@ def generate_tracks(num_tracks: int, length_of_track: int):
         all_tracks.append(track_definition)
 
     return {"tracks": all_tracks}
-
 
 def main():
     if len(sys.argv) != 4:
@@ -74,4 +87,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
